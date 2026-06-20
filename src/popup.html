@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>豆包 Seedance 增强</title>
+  <style>
+    :root { --primary: #0057ff; --bg: #ffffff; --bg2: #f7f8fa; --text: #1d2129; --text2: #86909c; --border: #e5e6eb; --ok: #00b42a; --ok-bg: #e8ffea; --warn: #ff7d00; --warn-bg: #fff7e8; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif; background: var(--bg); color: var(--text); width: 300px; }
+    .header { background: linear-gradient(135deg, var(--primary), #44adfe); color: white; padding: 14px 16px; display: flex; align-items: center; gap: 10px; }
+    .header-icon { font-size: 22px; }
+    .header-text h1 { font-size: 15px; font-weight: 600; }
+    .header-text p { font-size: 11px; opacity: 0.85; margin-top: 2px; }
+    .content { padding: 14px 16px; }
+    .section-title { font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .info-box { background: var(--bg2); padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; font-size: 12px; line-height: 1.6; }
+    .info-box strong { color: var(--primary); }
+    .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .toggle-row:last-child { border-bottom: none; }
+    .toggle-label { font-size: 13px; font-weight: 500; }
+    .toggle-desc { font-size: 11px; color: var(--text2); margin-top: 2px; }
+    .toggle-switch { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; border-radius: 22px; transition: 0.3s; }
+    .toggle-slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background-color: white; border-radius: 50%; transition: 0.3s; }
+    input:checked + .toggle-slider { background-color: var(--primary); }
+    input:checked + .toggle-slider:before { transform: translateX(18px); }
+    .duration-select { display: flex; gap: 6px; margin-top: 8px; }
+    .duration-btn { flex: 1; padding: 6px 0; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); font-size: 12px; font-weight: 500; cursor: pointer; text-align: center; transition: all 0.2s; }
+    .duration-btn.active { border-color: var(--primary); background: #e8f0ff; color: var(--primary); }
+    .duration-btn:hover { border-color: var(--primary); }
+    .status-bar { padding: 8px 12px; border-radius: 6px; display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 500; margin-top: 12px; }
+    .status-bar.active { background: var(--ok-bg); color: var(--ok); }
+    .status-bar.inactive { background: var(--warn-bg); color: var(--warn); }
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .status-bar.active .status-dot { background: var(--ok); }
+    .status-bar.inactive .status-dot { background: var(--warn); }
+    .footer { padding: 10px 16px; border-top: 1px solid var(--border); text-align: center; }
+    .footer-text { font-size: 10px; color: var(--text2); }
+    .footer a { color: var(--primary); text-decoration: none; }
+    .developer-info { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); }
+    .dev-line { font-size: 11px; color: var(--text2); line-height: 1.8; }
+    .dev-line a { color: var(--primary); text-decoration: none; font-weight: 500; }
+    .dev-line a:hover { text-decoration: underline; }
+    .dev-warning { font-size: 11px; color: #e74c3c; font-weight: 600; margin-top: 6px; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-icon">🎬</div>
+    <div class="header-text">
+      <h1>豆包 Seedance 增强</h1>
+      <p>15s 时长 + 无水印</p>
+    </div>
+  </div>
+  <div class="content">
+    <div class="section-title">功能开关</div>
+    <div class="toggle-row">
+      <div>
+        <div class="toggle-label">启用插件</div>
+        <div class="toggle-desc">开启后注入 15s 选项和去水印</div>
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" id="toggle-enabled" checked>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+
+    <div class="section-title" style="margin-top: 12px;">时长设置</div>
+    <div class="duration-select">
+      <button class="duration-btn" data-duration="5s">5s</button>
+      <button class="duration-btn" data-duration="10s">10s</button>
+      <button class="duration-btn active" data-duration="15s">15s</button>
+    </div>
+
+    <div class="section-title" style="margin-top: 12px;">功能说明</div>
+    <div class="info-box">
+      <strong>15s 时长：</strong>在时长菜单中选择 "15s"，请求中 duration 自动改为 15。<br>
+      <strong>无水印：</strong>自动重写媒体 URL，去除水印标记。<br><br>
+      <strong>额度消耗：</strong>5s=1额度，10s=2额度，15s=3额度。
+    </div>
+
+    <div class="status-bar active" id="status-bar">
+      <div class="status-dot"></div>
+      <span id="status-text">插件运行中</span>
+    </div>
+  </div>
+  <div class="footer">
+    <div class="footer-text">仅适用于 <a href="https://www.doubao.com" target="_blank">doubao.com</a> | Seedance 2.0 Fast</div>
+    <div class="developer-info">
+      <div class="dev-line">开发者: <a href="https://space.bilibili.com/3546746508544573" target="_blank">B站Tps-pwd</a></div>
+      <div class="dev-line">uid: 3546746508544573</div>
+      <div class="dev-warning">此插件为免费开源分享，不要相信任何骗取你三连的其他人</div>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

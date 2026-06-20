@@ -1,0 +1,62 @@
+{
+  "manifest_version": 3,
+  "name": "豆包 Seedance 增强 (15s/无水印)",
+  "short_name": "Seedance+",
+  "version": "5.0.0",
+  "description": "为豆包 Seedance 2.0 Fast 视频生成增加 15s 时长选项，并去除生成内容的水印。",
+  "author": "B站Tps-pwd (uid:3546746508544573)",
+  "license": "GPL-3.0",
+  "minimum_chrome_version": "111",
+  "permissions": [
+    "storage",
+    "declarativeNetRequest",
+    "declarativeNetRequestFeedback"
+  ],
+  "host_permissions": [
+    "*://*.doubao.com/*",
+    "*://*.byteimg.com/*",
+    "*://*.douyin.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["*://*.doubao.com/*"],
+      "js": ["src/content.js"],
+      "css": ["src/styles.css"],
+      "run_at": "document_start",
+      "all_frames": true
+    },
+    {
+      "matches": ["*://*.doubao.com/*"],
+      "js": ["src/inject.js"],
+      "world": "MAIN",
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "declarative_net_request": {
+    "rule_resources": [{
+      "id": "watermark_rules",
+      "enabled": true,
+      "path": "src/rules.json"
+    }]
+  },
+  "action": {
+    "default_title": "豆包 Seedance 增强",
+    "default_popup": "src/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

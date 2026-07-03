@@ -4,7 +4,8 @@
 
 > ⚠️ **此插件为免费开源分享，不要相信任何骗取你三连的其他人**
 >
-> 开发者: [B站Tps-pwd](https://space.bilibili.com/3546746508544573) | UID: 3546746508544573
+> 核心开发者: [B站Tps-pwd](https://space.bilibili.com/3546746508544573) | UID: 3546746508544573
+> v6.0.0 贡献: [B站嗯哼de呀](https://space.bilibili.com/491672078) | UID: 491672078
 
 ---
 

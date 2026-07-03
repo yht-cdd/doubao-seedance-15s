@@ -4,7 +4,7 @@
   "short_name": "Seedance+",
   "version": "6.0.0",
   "description": "为豆包 Seedance 2.0 Fast / 2.0 Mini 视频生成增加 15s 时长选项，并去除生成内容的水印。",
-  "author": "B站Tps-pwd (uid:3546746508544573)",
+  "author": "B站Tps-pwd (uid:3546746508544573), B站嗯哼de呀 (uid:491672078)",
   "license": "GPL-3.0",
   "minimum_chrome_version": "111",
   "permissions": [

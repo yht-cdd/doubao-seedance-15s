@@ -15,7 +15,14 @@
     chrome.storage.local.get(['doubao-seedance-enhancer_enabled', 'doubao-seedance-enhancer_duration'], (res) => {
       isEnabled = res['doubao-seedance-enhancer_enabled'] !== 'off';
       const durationStr = res['doubao-seedance-enhancer_duration'] || '15s';
-      targetDuration = parseInt(durationStr) || 15;
+      const newDuration = parseInt(durationStr) || 15;
+
+      // 从 15s 切换到其他时长时，清除按钮 patch
+      if (targetDuration === 15 && newDuration !== 15) {
+        clearDurationButtonPatch();
+      }
+
+      targetDuration = newDuration;
 
       window.postMessage({
         type: 'seedance_set_duration',
@@ -36,18 +43,13 @@
   });
 
   // ========== 2. 重新安装 fetch hook（注入 script 标签到 MAIN 世界） ==========
-  // 这是关键的后备机制：即使 inject.js 的 hook 被页面覆盖，
-  // content.js 也可以通过注入 script 标签重新安装 hook
   function reinstallFetchHook() {
     const dur = targetDuration;
     const script = document.createElement('script');
 
-    // 使用 Function 构造器避免模板字面量转义地狱
-    // 传入 duration 和 plugin ID 作为参数
     script.textContent = '(' + function(dur, pluginId) {
       var realFetch = window.__doubao_real_fetch || window.fetch;
 
-      // 检查当前 fetch 是否已经被 defineProperty 保护（即 hook 仍在）
       try {
         var desc = Object.getOwnPropertyDescriptor(window, 'fetch');
         if (desc && !desc.configurable && !desc.writable) {
@@ -56,7 +58,6 @@
         }
       } catch(e) {}
 
-      // hook 不在了，重新安装
       var hookedFetch = function() {
         var args = Array.from(arguments);
         try {
@@ -66,15 +67,13 @@
           if (url && url.indexOf('/chat/completion') !== -1 && init && init.body) {
             if (typeof init.body === 'string' && init.body.indexOf('ability_param') !== -1) {
               console.log('[' + pluginId + '-REHOOK] 捕获到请求');
-              // 正确的正则：反斜杠在引号之前（\"duration\":10）
-              // 匹配 \"duration\":10, "duration":10, \\"duration\\":10 等
               var origBody = init.body;
               args[1].body = init.body.replace(
                 /(\\*)"duration(\\*)"\s*:\s*(\d+)/g,
                 function(m, l, r, n) { return l + '"duration' + r + '":' + dur; }
               );
               if (args[1].body !== origBody) {
-                console.log('[' + pluginId + '-REHOOK] ✓ 修改 duration -> ' + dur + 's');
+                console.log('[' + pluginId + '-REHOOK] 修改 duration -> ' + dur + 's');
               } else {
                 console.log('[' + pluginId + '-REHOOK] 未匹配到 duration 格式');
               }
@@ -104,28 +103,22 @@
   }
 
   // ========== 3. 定期验证 hook 状态 ==========
-  // 页面可能在任意时刻覆盖 fetch，所以定期检查
   let hookCheckCount = 0;
-  const MAX_HOOK_CHECKS = 60; // 检查 60 次（30 秒）
+  const MAX_HOOK_CHECKS = 60;
   let hookVerified = false;
 
   function checkAndReinstallHook() {
     hookCheckCount++;
     if (hookCheckCount > MAX_HOOK_CHECKS && hookVerified) {
-      // 超过 30 秒且已确认 hook 活跃，停止检查
       return;
     }
-
-    // 通过 postMessage 查询 inject.js 的 hook 状态
     window.postMessage({ type: 'seedance_check_hook' }, '*');
   }
 
-  // 监听 inject.js 的 hook 状态回复
   window.addEventListener('message', (e) => {
     if (e.data?.type === 'seedance_hook_status') {
       if (e.data.active) {
         hookVerified = true;
-        // hook 活跃，减少检查频率
       } else {
         console.log(`[${PLUGIN_ID}] 检测到 hook 不活跃，重新安装...`);
         reinstallFetchHook();
@@ -133,21 +126,18 @@
     }
   });
 
-  // 启动定期检查（前 30 秒每 500ms 检查一次）
   const hookChecker = setInterval(() => {
     if (hookCheckCount >= MAX_HOOK_CHECKS) {
       clearInterval(hookChecker);
-      // 之后每 5 秒检查一次（低频）
       setInterval(checkAndReinstallHook, 5000);
       return;
     }
     checkAndReinstallHook();
   }, 500);
 
-  // 首次安装：等一小段时间让 inject.js 先执行，然后验证
   setTimeout(reinstallFetchHook, 100);
 
-  // 监听页面导航（SPA 路由变化），重新安装 hook
+  // 监听页面导航（SPA 路由变化）
   let lastUrl = location.href;
   const urlObserver = new MutationObserver(() => {
     if (location.href !== lastUrl) {
@@ -164,7 +154,7 @@
     });
   }
 
-  // ========== 4. 注入 15s 菜单项 ==========
+  // ========== 4. 注入 15s 菜单项 + 维护 UI 显示 ==========
   function inject15sOption() {
     if (!isEnabled) return;
 
@@ -180,18 +170,46 @@
       }
     }
 
-    if (!durationMenu) return;
-    if (durationMenu.querySelector('.seedance-15s-injected')) return;
+    if (!durationMenu) {
+      patchDurationButton();
+      return;
+    }
 
-    const items = durationMenu.querySelectorAll('[role="menuitem"]');
+    const menuItems = durationMenu.querySelectorAll('[role="menuitem"]');
+
+    // 给原生选项绑定点击监听器（只绑定一次）
+    menuItems.forEach(item => {
+      const text = item.textContent.trim();
+      if (text === '5s' || text === '10s') {
+        if (item.dataset.seedanceNativeBound) return;
+        item.dataset.seedanceNativeBound = 'true';
+        item.addEventListener('click', () => {
+          const d = text;
+          chrome.storage.local.set({ 'doubao-seedance-enhancer_duration': d });
+          targetDuration = parseInt(d) || 10;
+          console.log(`[${PLUGIN_ID}] 用户选择原生 ${d}`);
+          clearDurationButtonPatch();
+        });
+      }
+    });
+
+    if (durationMenu.querySelector('.seedance-15s-injected')) {
+      syncMenuCheckmark(durationMenu);
+      patchDurationButton();
+      return;
+    }
+
     let template = null;
-    for (const item of items) {
+    for (const item of menuItems) {
       if (item.textContent.trim() === '10s') {
         template = item;
         break;
       }
     }
-    if (!template) return;
+    if (!template) {
+      patchDurationButton();
+      return;
+    }
 
     const option15s = template.cloneNode(true);
     option15s.classList.add('seedance-15s-injected');
@@ -204,20 +222,14 @@
       }
     }
 
-    const svgs = option15s.querySelectorAll('svg');
-    svgs.forEach(svg => {
-      const parent = svg.parentElement;
-      if (parent && parent.children.length === 1) {
-        parent.remove();
-      }
-    });
+    // 只移除 svg 勾选标记本身，保留父容器结构
+    option15s.querySelectorAll('svg').forEach(svg => svg.remove());
 
     option15s.addEventListener('click', (e) => {
       e.stopPropagation();
       e.preventDefault();
 
-      const allItems = durationMenu.querySelectorAll('[role="menuitem"]');
-      for (const item of allItems) {
+      for (const item of menuItems) {
         if (item.textContent.trim() === '10s') {
           item.click();
           break;
@@ -225,11 +237,111 @@
       }
 
       chrome.storage.local.set({ 'doubao-seedance-enhancer_duration': '15s' });
+      targetDuration = 15;
       console.log(`[${PLUGIN_ID}] 用户选择 15s，将在请求时修改 duration`);
+      patchDurationButton();
     });
 
     durationMenu.appendChild(option15s);
-    console.log(`[${PLUGIN_ID}] ✓ 15s 选项已注入菜单`);
+    console.log(`[${PLUGIN_ID}] 15s 选项已注入菜单`);
+    syncMenuCheckmark(durationMenu);
+    patchDurationButton();
+  }
+
+  // 同步菜单勾选：如果设置是15s，勾选打在15s上
+  function syncMenuCheckmark(menu) {
+    if (targetDuration !== 15) return;
+
+    const items = menu.querySelectorAll('[role="menuitem"]');
+    let item10s = null;
+    let item15s = null;
+
+    for (const item of items) {
+      const text = item.textContent.trim();
+      if (text === '10s') item10s = item;
+      if (text === '15s') item15s = item;
+    }
+
+    if (!item10s || !item15s) return;
+
+    const check10s = item10s.querySelector('svg');
+    const check15s = item15s.querySelector('svg');
+
+    if (check10s && !check15s) {
+      function getPath(el, root) {
+        const path = [];
+        while (el && el !== root) {
+          const parent = el.parentElement;
+          if (!parent) break;
+          const index = Array.from(parent.children).indexOf(el);
+          path.unshift(index);
+          el = parent;
+        }
+        return path;
+      }
+
+      function getElByPath(root, path) {
+        let el = root;
+        for (const idx of path) {
+          if (!el.children[idx]) return null;
+          el = el.children[idx];
+        }
+        return el;
+      }
+
+      const svgPath = getPath(check10s, item10s);
+      if (svgPath.length >= 2) {
+        const targetParent = getElByPath(item15s, svgPath.slice(0, -1));
+        if (targetParent) {
+          targetParent.appendChild(check10s.cloneNode(true));
+          check10s.remove();
+          console.log(`[${PLUGIN_ID}] 勾选已同步到 15s`);
+          return;
+        }
+      }
+
+      item15s.appendChild(check10s.cloneNode(true));
+      check10s.remove();
+      console.log(`[${PLUGIN_ID}] 勾选已同步到 15s (兜底)`);
+    }
+  }
+
+  // 修正时长按钮显示（菜单关闭后的按钮文字）
+  function patchDurationButton() {
+    if (targetDuration !== 15) return;
+
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+      acceptNode: (node) => {
+        if (node.textContent.trim() === '10s') return NodeFilter.FILTER_ACCEPT;
+        return NodeFilter.FILTER_REJECT;
+      }
+    });
+
+    let node;
+    while ((node = walker.nextNode())) {
+      const el = node.parentElement;
+      if (!el) continue;
+      if (el.closest('[role="menu"]') || el.closest('[role="menuitem"]')) continue;
+      if (el.dataset.seedancePatched === '15s') continue;
+
+      node.textContent = '15s';
+      el.dataset.seedancePatched = '15s';
+      console.log(`[${PLUGIN_ID}] 按钮文字已修正为 15s`);
+    }
+  }
+
+  // 清除按钮 patch 标记（切换回非15s时调用）
+  function clearDurationButtonPatch() {
+    document.querySelectorAll('[data-seedance-patched="15s"]').forEach(el => {
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
+      while (walker.nextNode()) {
+        if (walker.currentNode.textContent.trim() === '15s') {
+          walker.currentNode.textContent = '10s';
+          break;
+        }
+      }
+      delete el.dataset.seedancePatched;
+    });
   }
 
   const domObserver = new MutationObserver(() => {

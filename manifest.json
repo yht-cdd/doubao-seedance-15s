@@ -2,36 +2,31 @@
   "manifest_version": 3,
   "name": "豆包 Seedance 增强 (15s/无水印)",
   "short_name": "Seedance+",
-  "version": "6.9.4",
-   "description": "为豆包 Seedance 2.0 Fast / 2.0 Mini 视频生成增加 15s 时长选项（UI注入+API拦截），去水印开关按钮，下载按钮（fetch+blob三重下载方式）。支持 dola.com 和 doubao.com。",
-  "author": "B站Tps-pwd (uid:3546746508544573), B站嗯哼de呀 (uid:491672078)",
+  "version": "5.0.0",
+  "description": "为豆包 Seedance 2.0 Fast 视频生成增加 15s 时长选项，并去除生成内容的水印。",
+  "author": "B站Tps-pwd (uid:3546746508544573)",
+  "license": "GPL-3.0",
   "minimum_chrome_version": "111",
   "permissions": [
     "storage",
     "declarativeNetRequest",
-    "declarativeNetRequestFeedback",
-    "downloads"
+    "declarativeNetRequestFeedback"
   ],
-   "host_permissions": [
+  "host_permissions": [
     "*://*.doubao.com/*",
-    "*://*.dola.com/*",
     "*://*.byteimg.com/*",
-    "*://*.ibyteimg.com/*",
-    "*://*.douyin.com/*",
-    "*://*.tiktokcdn.com/*",
-    "*://*.ciciai.com/*",
-    "*://*.douyinvod.com/*"
+    "*://*.douyin.com/*"
   ],
   "content_scripts": [
     {
-      "matches": ["*://*.doubao.com/*", "*://*.dola.com/*"],
+      "matches": ["*://*.doubao.com/*"],
       "js": ["src/content.js"],
       "css": ["src/styles.css"],
       "run_at": "document_start",
       "all_frames": true
     },
     {
-      "matches": ["*://*.doubao.com/*", "*://*.dola.com/*"],
+      "matches": ["*://*.doubao.com/*"],
       "js": ["src/inject.js"],
       "world": "MAIN",
       "run_at": "document_start",
@@ -65,8 +60,3 @@
     "128": "icons/icon128.png"
   }
 }
- 
-
-
-
-

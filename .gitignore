@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Debug/test files
+src/debug-intercept.js
+src/hook-inject.js
+src/hook-protected.js
+src/test-regex.js
+src/test-replace.js
+_metadata/
+
+# Logs
+*.log
+npm-debug.log*

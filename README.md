@@ -119,35 +119,8 @@
 ## 📝 版本历史
 
 ### v6.9.4 (2026-07-04)
+- ⚡ 优化水印去除参数：`lr=video_gen_no_watermark`（同时去除动态水印和静态"豆包AI生成"品牌水印）
 - 🗑️ 移除下载按钮注入功能
-- ⚡ 优化水印去除参数：`lr=unwatermarked` → `lr=video_gen_no_watermark`
-- ✅ 同时去除动态水印和静态"豆包AI生成"品牌水印
-
-### v6.9.3 (2026-07-04)
-- 🔧 新增 declarativeNetRequest 规则 (Rule #8) 用于视频水印重定向
-- ⚡ 更新水印去除逻辑，支持 `lr=video_gen_watermark` 和 `lr=video_gen_watermark_dyn` 两种格式
-
-### v6.9.2 (2026-07-04)
-- ✅ 新增 15s 时长选项 UI 注入
-- ✅ 新增去水印开关按钮（绿色=开启，灰色=关闭）
-- ✅ 下载按钮支持 fetch+blob 三重下载方式
-- 🔧 水印替换器支持 doubao.com 和 dola.com
-
-### v6.8.0 (2026-07-03)
-- ✅ 支持 doubao.com 和 dola.com 双平台
-- ✅ 图片水印替换（ibyteimg CDN）
-- ✅ 视频封面水印替换
-- ✅ CORS headers 处理（douyinvod.com）
-
-### v6.7.0 (2026-07-02)
-- ✅ XHR hook 拦截视频 URL
-- ✅ 支持 ReadableStream 和 FormData 格式请求体
-- ✅ 自动恢复机制
-
-### v6.5.0 (2026-07-01)
-- ✅ 弹窗控制界面
-- ✅ 时长切换功能 (5s/10s/15s)
-- ✅ 开发者信息展示
 
 ### v5.0.0 (2026-06-20)
 - 🎉 首次发布

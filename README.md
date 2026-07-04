@@ -122,12 +122,20 @@
 - ⚡ 优化水印去除参数：`lr=video_gen_no_watermark`（同时去除动态水印和静态"豆包AI生成"品牌水印）
 - 🗑️ 移除下载按钮注入功能
 
+### v6.0.0 (2026-06-28)
+- ✅ 支持 doubao.com 和 dola.com 双平台
+- ✅ 15s 时长选项 UI 注入
+- ✅ 去水印开关按钮
+- ✅ 图片/视频/封面水印替换
+- ✅ XHR hook 拦截视频 URL
+- ✅ 弹窗控制界面
+- ✅ 自动 hook 恢复机制
+
 ### v5.0.0 (2026-06-20)
 - 🎉 首次发布
 - ✅ 15s 视频时长注入
 - ✅ 无水印处理（declarativeNetRequest）
 - ✅ Object.defineProperty hook 保护
-- ✅ 自动 hook 恢复机制
 
 ## 🤝 贡献
 

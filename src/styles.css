@@ -1,0 +1,36 @@
+/* styles.css - 豆包 Seedance 增强插件样式（Chrome 版） */
+
+/* 15s 选项样式 - 与原生一致 */
+.seedance-15s-option {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  height: 38px;
+  padding: 4px 10px;
+  border-radius: var(--s-radius-s, 6px);
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--s-color-text-primary, rgba(0, 0, 0, 0.85));
+  transition: background-color 0.2s;
+}
+
+.seedance-15s-option:hover {
+  background-color: var(--s-color-bg-trans-10-hover, rgba(0, 0, 0, 0.06));
+}
+
+.seedance-15s-option .text-h1FJkj {
+  font: var(--s-font-small-small, 14px/22px);
+  white-space: nowrap;
+}
+
+.seedance-15s-option .ml-8 svg {
+  width: 14px;
+  height: 14px;
+  color: var(--s-color-brand-primary-default, #0057ff);
+}
+
+/* 高亮标记 - 用于调试 */
+.seedance-highlight {
+  outline: 2px solid #ff4500 !important;
+  outline-offset: 2px;
+}

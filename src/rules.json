@@ -1,0 +1,120 @@
+[
+  {
+    "id": 1,
+    "priority": 2,
+    "action": {
+      "type": "redirect",
+      "redirect": {
+        "regexSubstitution": "\\1~tplv-a9rns2rl98-image-qvalue.jpeg"
+      }
+    },
+    "condition": {
+      "regexFilter": "^(https://[^/]+/[^?]+)~tplv-a9rns2rl98-downsize_watermark_1_6\\.png",
+      "resourceTypes": ["image"]
+    }
+  },
+  {
+    "id": 2,
+    "priority": 2,
+    "action": {
+      "type": "redirect",
+      "redirect": {
+        "regexSubstitution": "\\1~tplv-a9rns2rl98-video_cover.jpeg"
+      }
+    },
+    "condition": {
+      "regexFilter": "^(https://[^/]+/[^?]+)~tplv-a9rns2rl98-video_dsz_watermark_1_6\\.png",
+      "resourceTypes": ["image"]
+    }
+  },
+  {
+    "id": 3,
+    "priority": 2,
+    "action": {
+      "type": "redirect",
+      "redirect": {
+        "transform": {
+          "queryTransform": {
+            "removeParams": ["logo_type"]
+          }
+        }
+      }
+    },
+    "condition": {
+      "urlFilter": "logo_type=video_gen_watermark_dyn",
+      "resourceTypes": ["media"]
+    }
+  },
+  {
+    "id": 4,
+    "priority": 2,
+    "action": {
+      "type": "redirect",
+      "redirect": {
+        "regexSubstitution": "\\1~tplv-6187y3xstg-image.jpeg"
+      }
+    },
+    "condition": {
+      "regexFilter": "^(https://[^/]+/[^?]+)~tplv-6187y3xstg-watermark.*\\.(?:png|jpg|jpeg)",
+      "resourceTypes": ["image"]
+    }
+  },
+  {
+    "id": 5,
+    "priority": 2,
+    "action": {
+      "type": "redirect",
+      "redirect": {
+        "regexSubstitution": "\\1~tplv-6187y3xstg-video_cover.jpeg"
+      }
+    },
+    "condition": {
+      "regexFilter": "^(https://[^/]+/[^?]+)~tplv-6187y3xstg-video_dsz_watermark.*\\.(?:png|jpg|jpeg)",
+      "resourceTypes": ["image"]
+    }
+  },
+  {
+    "id": 6,
+    "priority": 2,
+    "action": {
+      "type": "redirect",
+      "redirect": {
+        "regexSubstitution": "\\1~tplv-6187y3xstg-image.jpeg"
+      }
+    },
+    "condition": {
+      "regexFilter": "^(https://[^/]+/[^?]+)~tplv-6187y3xstg-downsize_watermark.*\\.(?:png|jpg|jpeg)",
+      "resourceTypes": ["image"]
+    }
+  },
+  {
+    "id": 7,
+    "priority": 2,
+    "action": {
+      "type": "modifyHeaders",
+      "responseHeaders": [
+        { "header": "Access-Control-Allow-Origin", "operation": "set", "value": "*" },
+        { "header": "Access-Control-Allow-Methods", "operation": "set", "value": "GET, OPTIONS" },
+        { "header": "Access-Control-Allow-Credentials", "operation": "set", "value": "true" }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||douyinvod.com/",
+      "resourceTypes": ["xmlhttprequest", "media", "other"]
+    }
+  },
+  {
+    "id": 8,
+    "priority": 2,
+    "action": {
+      "type": "redirect",
+      "redirect": {
+        "regexSubstitution": "\\1lr=video_gen_no_watermark"
+      }
+    },
+    "condition": {
+      "regexFilter": "(\\?.*)lr=video_gen_watermark(?:_dyn)?",
+      "resourceTypes": ["media"]
+    }
+  }
+]

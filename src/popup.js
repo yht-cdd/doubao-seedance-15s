@@ -143,6 +143,31 @@ function scanCurrentPage() {
         Object.keys(rawMap).forEach(key => {
           results.push({ type: key.includes('video') ? 'video' : 'image', src: rawMap[key], key });
         });
+        // 从页面 HTML 中提取 creation_block 中的视频封面和 vid
+        try {
+          const html = document.documentElement.innerHTML;
+          const cbIdx = html.indexOf('creation_block');
+          if (cbIdx >= 0) {
+            const block = html.substring(cbIdx, cbIdx + 5000);
+            // 提取 vid
+            const vidMatch = block.match(/vid[^a-zA-Z0-9]+([a-zA-Z0-9_]+)/);
+            if (vidMatch) {
+              results.push({ type: 'video', src: 'vid:' + vidMatch[1], key: 'vid_' + vidMatch[1] });
+            }
+            // 提取 image_thumb URL（含水印）
+            const thumbMatch = block.match(/image_thumb[^}]{0,500}?url[^:]+:\s*"([^"]+)"/);
+            if (thumbMatch) {
+              const thumbUrl = thumbMatch[1].replace(/\\u002F/g, '/');
+              results.push({ type: 'video', src: thumbUrl, key: 'cover_' + Date.now() });
+            }
+            // 提取 image_preview URL
+            const prevMatch = block.match(/image_preview[^}]{0,500}?url[^:]+:\s*"([^"]+)"/);
+            if (prevMatch) {
+              const prevUrl = prevMatch[1].replace(/\\u002F/g, '/');
+              results.push({ type: 'video', src: prevUrl, key: 'preview_' + Date.now() });
+            }
+          }
+        } catch(e) {}
         return results;
       }
     }).then(injectionResults => {

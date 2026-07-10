@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "豆包 Seedance 增强 (15s/无水印)",
   "short_name": "Seedance+",
-  "version": "7.3.6",
+  "version": "7.5.0",
    "description": "为豆包 Seedance 2.0 Fast / 2.0 Mini 视频生成增加 15s 时长选项（UI注入+API拦截），去水印开关按钮，下载按钮（fetch+blob三重下载方式）。支持 dola.com 和 doubao.com。",
   "author": "B站Tps-pwd (uid:3546746508544573), B站嗯哼de呀 (uid:491672078)",
   "minimum_chrome_version": "111",

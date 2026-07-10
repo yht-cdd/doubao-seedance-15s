@@ -203,7 +203,20 @@
     return urlMap;
   }
 
-  // ========== 拦截 fetch 响应，提取原图 URL ==========
+  // ========== 合并 URL 到种子地图（不覆盖已有条目） ==========
+  function mergeUrlMap(newMap) {
+    if (!newMap || typeof newMap !== 'object') return;
+    if (!window.__seedance_raw_url_map) window.__seedance_raw_url_map = {};
+    var keys = Object.keys(newMap);
+    for (var k = 0; k < keys.length; k++) {
+      var key = keys[k];
+      if (!window.__seedance_raw_url_map[key]) {
+        window.__seedance_raw_url_map[key] = newMap[key];
+      }
+    }
+    console.log('[' + PLUGIN_ID + '] 合并 ' + keys.length + ' 个 URL 到地图');
+    return true;
+  }
   function interceptResponse(originalFetch, thisArg, args) {
     var input = args[0];
     var url = typeof input === 'string' ? input : (input && input.url);
@@ -220,20 +233,22 @@
           var videoMap = extractVideoUrlsFromChain(text);
           var vKeys = Object.keys(videoMap);
           if (vKeys.length > 0) {
-            window.__seedance_raw_url_map = videoMap;
+            mergeUrlMap(videoMap);
             console.log('[' + PLUGIN_ID + '] 从历史对话提取到 ' + vKeys.length + ' 个无水印视频 URL');
             window.postMessage({ type: 'seedance_urls_extracted', urls: videoMap }, '*');
           }
         } else {
-          // SSE: 带超时的 stream 读取
+          // SSE: 带超时的 stream 读取（视频生成可能需要 3 分钟）
           text = await Promise.race([
             clone.text(),
-            new Promise(function(_, reject) { setTimeout(function() { reject(new Error('stream timeout')); }, 60000); })
+            new Promise(function(_, reject) { setTimeout(function() { reject(new Error('stream timeout')); }, 180000); })
           ]);
           var urlMap = extractRawUrlsFromSSE(text);
           var keys = Object.keys(urlMap);
+          console.log('[' + PLUGIN_ID + '] SSE 响应长度: ' + text.length + ', 提取到 ' + keys.length + ' 个 URL');
+          if (text.length < 500) console.log('[' + PLUGIN_ID + '] SSE 内容: ' + text.substring(0, 500));
           if (keys.length > 0) {
-            window.__seedance_raw_url_map = urlMap;
+            mergeUrlMap(urlMap);
             console.log('[' + PLUGIN_ID + '] 提取到 ' + keys.length + ' 个原图 URL 映射');
             // 通知 content.js 存储无水印 URL
             window.postMessage({ type: 'seedance_urls_extracted', urls: urlMap }, '*');
@@ -327,7 +342,7 @@
                     if (urlMap) {
                       var keys = Object.keys(urlMap);
                       if (keys.length > 0) {
-                        window.__seedance_raw_url_map = urlMap;
+                        mergeUrlMap(urlMap);
                         console.log('[' + PLUGIN_ID + '] XHR 提取到 ' + keys.length + ' 个无水印 URL');
                       }
                     }
@@ -394,25 +409,28 @@
       for (var i = 0; i < videos.length; i++) {
         var v = videos[i];
         if (v.dataset.seedanceRaw) continue;
-        // 豆包 doubao.com：直接替换 lr 参数去除水印（包括动态和静态水印）
         var _vsrc = v.src || v.currentSrc;
-        if (_vsrc && _vsrc.indexOf('douyinvod.com') >= 0 && _vsrc.indexOf('lr=video_gen_watermark') >= 0) {
+        if (!_vsrc) continue;
+        // 豆包 doubao.com：直接替换 lr 参数去除水印
+        if (_vsrc.indexOf('douyinvod.com') >= 0 && _vsrc.indexOf('lr=video_gen_watermark') >= 0) {
           var _cleanUrl = _vsrc.replace(/lr=video_gen_watermark(?:_dyn)?/g, 'lr=video_gen_no_watermark');
           v.src = _cleanUrl;
           v.dataset.seedanceRaw = _cleanUrl;
           if (!window.__seedance_raw_url_map) window.__seedance_raw_url_map = {};
           window.__seedance_raw_url_map['__video_doubao'] = _cleanUrl;
+          window.postMessage({ type: 'seedance_urls_extracted', urls: { '__video_doubao': _cleanUrl } }, '*');
           v.load();
           console.log('[' + PLUGIN_ID + '] 豆包视频水印已去除 (lr -> video_gen_no_watermark)');
           continue;
         }
         // Dola.com：替换水印参数
-        if (_vsrc && _vsrc.indexOf('dola.com') >= 0 && (_vsrc.indexOf('lr=watermark') >= 0 || _vsrc.indexOf('lr=video_gen_watermark') >= 0)) {
+        if (_vsrc.indexOf('dola.com') >= 0 && (_vsrc.indexOf('lr=watermark') >= 0 || _vsrc.indexOf('lr=video_gen_watermark') >= 0)) {
           var _dolaClean = _vsrc.replace(/lr=video_gen_watermark(?:_dyn)?/g, 'lr=unwatermarked').replace(/lr=watermark(?:_dyn)?/g, 'lr=unwatermarked');
           v.src = _dolaClean;
           v.dataset.seedanceRaw = _dolaClean;
           v.load();
           console.log('[' + PLUGIN_ID + '] Dola 视频水印已去除');
+          window.postMessage({ type: 'seedance_urls_extracted', urls: { '__video_dola': _dolaClean } }, '*');
           continue;
         }
         // Dola.com：也处理带 ibyteimg 水印的视频

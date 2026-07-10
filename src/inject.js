@@ -511,7 +511,40 @@
         }
       }
     }, 500);
-    console.log('[' + PLUGIN_ID + '] 水印替换器已启动（图片+视频）');
+    // MutationObserver：视频元素插入时立即替换，不依赖 setInterval
+    try {
+      var observer = new MutationObserver(function() {
+        // 仅查视频，其他交给 setInterval
+        var vs = document.querySelectorAll('video');
+        for (var vi = 0; vi < vs.length; vi++) {
+          var vv = vs[vi];
+          if (vv.dataset.seedanceRaw) continue;
+          var _src = vv.src || vv.currentSrc;
+          if (!_src) continue;
+          if (_src.indexOf('douyinvod.com') >= 0 && _src.indexOf('lr=video_gen_watermark') >= 0) {
+            var _c = _src.replace(/lr=video_gen_watermark(?:_dyn)?/g, 'lr=video_gen_no_watermark');
+            vv.src = _c;
+            vv.dataset.seedanceRaw = _c;
+            if (!window.__seedance_raw_url_map) window.__seedance_raw_url_map = {};
+            window.__seedance_raw_url_map['__video_doubao'] = _c;
+            window.postMessage({ type: 'seedance_urls_extracted', urls: { '__video_doubao': _c } }, '*');
+            vv.load();
+            console.log('[' + PLUGIN_ID + '] MutationObserver 豆包视频水印已去除');
+          } else if (_src.indexOf('dola.com') >= 0 && (_src.indexOf('lr=watermark') >= 0 || _src.indexOf('lr=video_gen_watermark') >= 0)) {
+            var _dc = _src.replace(/lr=video_gen_watermark(?:_dyn)?/g, 'lr=unwatermarked').replace(/lr=watermark(?:_dyn)?/g, 'lr=unwatermarked');
+            vv.src = _dc;
+            vv.dataset.seedanceRaw = _dc;
+            vv.load();
+            window.postMessage({ type: 'seedance_urls_extracted', urls: { '__video_dola': _dc } }, '*');
+            console.log('[' + PLUGIN_ID + '] MutationObserver Dola 视频水印已去除');
+          }
+        }
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    } catch(e) {
+      console.warn('[' + PLUGIN_ID + '] MutationObserver 安装失败:', e);
+    }
+    console.log('[' + PLUGIN_ID + '] 水印替换器已启动（图片+视频+Observer）');
   }
 
   // ========== 15s 时长选项注入 ==========

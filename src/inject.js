@@ -217,6 +217,33 @@
     console.log('[' + PLUGIN_ID + '] 合并 ' + keys.length + ' 个 URL 到地图');
     return true;
   }
+  // ========== 通过 vid 获取无水印视频 URL（3步 API） ==========
+  function fetchUnwatermarkedUrl(vid) {
+    if (!vid || !watermarkRemovalEnabled) return Promise.resolve(null);
+    console.log('[' + PLUGIN_ID + '] 获取vid=' + vid + ' 的无水印URL...');
+    return fetch('/samantha/aispace/homepage?aid=497858&device_platform=web&samantha_web=1&use-olympus-account=1&version_code=20800&pkg_type=release_version', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'
+    }).then(function(r){return r.json()}).then(function(hd){
+      var cid=null;(hd.data?.children||[]).forEach(function(c){if(c.name==='我的创作')cid=c.id});
+      if(!cid){console.log('['+PLUGIN_ID+'] 获取创作ID失败');return null}
+      return fetch('/samantha/aispace/node_info?aid=497858&device_platform=web&samantha_web=1&use-olympus-account=1&version_code=20800&pkg_type=release_version',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({node_id:cid,need_full_path:true,size:50,sort_param:{need_sort_config:true,sort_order:1,sort_type:0}})
+      }).then(function(r){return r.json()}).then(function(nd){
+        var nid=null;(nd.data?.children||[]).forEach(function(c){if(String(c.key)===String(vid))nid=c.id});
+        if(!nid){console.log('['+PLUGIN_ID+'] 获取nodeId失败');return null}
+        return fetch('/samantha/aispace/get_download_info?aid=497858&device_platform=web&samantha_web=1&use-olympus-account=1&version_code=20800&pkg_type=release_version',{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({requests:[{node_id:nid}]})
+        }).then(function(r){return r.json()}).then(function(dl){
+          var url=(dl.data?.download_infos||[])[0]?.main_url;
+          if(url){console.log('['+PLUGIN_ID+'] 获取到无水印URL');return url}
+          console.log('['+PLUGIN_ID+'] 获取播放地址失败');return null
+        })
+      })
+    }).catch(function(e){console.warn('['+PLUGIN_ID+'] 获取无水印URL失败:',e.message);return null})
+  }
+
   function interceptResponse(originalFetch, thisArg, args) {
     var input = args[0];
     var url = typeof input === 'string' ? input : (input && input.url);
@@ -413,7 +440,8 @@
         if (!_vsrc) continue;
         // 豆包 doubao.com：直接替换 lr 参数去除水印
         if (_vsrc.indexOf('douyinvod.com') >= 0 && _vsrc.indexOf('lr=video_gen_watermark') >= 0) {
-          var _cleanUrl = _vsrc.replace(/lr=video_gen_watermark(?:_dyn)?/g, 'lr=video_gen_no_watermark');
+          // 移除整个 lr 参数（包括后面的值直到 & 或字符串结束）
+          var _cleanUrl = _vsrc.replace(/&lr=video_gen_watermark[^&]*/g, '').replace(/\?lr=video_gen_watermark[^&]*/, '?');
           v.src = _cleanUrl;
           v.dataset.seedanceRaw = _cleanUrl;
           if (!window.__seedance_raw_url_map) window.__seedance_raw_url_map = {};
@@ -545,6 +573,42 @@
       console.warn('[' + PLUGIN_ID + '] MutationObserver 安装失败:', e);
     }
     console.log('[' + PLUGIN_ID + '] 水印替换器已启动（图片+视频+Observer）');
+
+    // 额外：扫描页面查找 vid 并获取无水印 URL
+    if (!window.__seedance_vid_scan) {
+      window.__seedance_vid_scan = true;
+      setTimeout(function scanVids() {
+        try {
+          if (!watermarkRemovalEnabled) { setTimeout(scanVids, 5000); return; }
+          if (window.__seedance_fetching_vid) { setTimeout(scanVids, 3000); return; }
+          
+          var html = document.documentElement.innerHTML;
+          var vidMatch = html.match(/vid["\\\\':]+([a-zA-Z0-9_]+)/);
+          if (!vidMatch) { setTimeout(scanVids, 5000); return; }
+          var vid = vidMatch[1];
+          
+          // 检查是否已获取过
+          if (window.__seedance_resolved_vids && window.__seedance_resolved_vids[vid]) {
+            setTimeout(scanVids, 10000); return;
+          }
+          if (!window.__seedance_resolved_vids) window.__seedance_resolved_vids = {};
+          window.__seedance_fetching_vid = true;
+          
+          fetchUnwatermarkedUrl(vid).then(function(url) {
+            window.__seedance_fetching_vid = false;
+            if (url) {
+              window.__seedance_resolved_vids[vid] = url;
+              var mapKey = '__video_doubao_' + vid;
+              if (!window.__seedance_raw_url_map) window.__seedance_raw_url_map = {};
+              window.__seedance_raw_url_map[mapKey] = url;
+              window.postMessage({ type: 'seedance_urls_extracted', urls: (function(){var o={};o[mapKey]=url;return o})() }, '*');
+              console.log('[' + PLUGIN_ID + '] 已获取无水印视频 URL: ' + url.substring(0, 80));
+            }
+          }).catch(function() { window.__seedance_fetching_vid = false; });
+        } catch(e) {}
+        setTimeout(scanVids, 10000);
+      }, 3000);
+    }
   }
 
   // ========== 15s 时长选项注入 ==========

@@ -90,6 +90,28 @@
 
 ## 📝 版本历史
 
+### v7.7.2 (2026-07-11)
+- ✅ **Thread页面解析** — 从 `doubao.com/thread/xxx` 分享页提取视频数据
+- ✅ **无水印下载** — 通过 `samantha/aispace/get_download_info` API 获取无水印视频URL
+- ✅ **Referer头修复** — 下载时带 `Referer` 头，避免CDN 403
+- ✅ 修复 `data-fn-args` 解析格式兼容性（支持两种JSON结构）
+- ✅ 修复 `scanForGeneratedVideos` 语法错误
+- ✅ 获取到无水印URL后自动覆盖水印版URL
+
+### v7.6.0 (2026-07-11)
+- ✅ **豆包无水印视频API获取** — 3步API流程获取原始高质量无水印视频
+- ✅ 自动扫描vid并异步获取无水印URL
+- ✅ 39MB原始高质量视频（对比有水印版仅2MB）
+
+### v7.5.1 (2026-07-11)
+- ✅ MutationObserver 监听视频元素插入，立即替换水印
+- ✅ 不再依赖 `setInterval` 定时检查
+
+### v7.5.0 (2026-07-11)
+- ✅ 修复面板不显示豆包视频链接
+- ✅ `mergeUrlMap` 防止替换器保存的URL被后续响应覆盖
+- ✅ 面板自动扫描 `creation_block` 中的视频ID和封面图
+
 ### v6.0.0 (2026-07-03)
 - ✅ **支持 Seedance 2.0 Mini** — 插件现可与 Seedance 2.0 Mini 兼容使用
 - ✅ 重构 UI 显示逻辑：添加 `syncMenuCheckmark()` 函数自动同步勾选标记位置

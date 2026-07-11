@@ -9,7 +9,7 @@
   let targetDuration = 15;
   let hookActive = false;
 
-  console.log(`[${PLUGIN_ID}] inject.js MAIN 世界已加载`);
+  console.log(`[${PLUGIN_ID}] inject.js MAIN 世界已加载 (v7.7.1)`);
 
   // 监听来自 content.js 的时长配置消息
   window.addEventListener('message', (e) => {
@@ -573,42 +573,56 @@
       console.warn('[' + PLUGIN_ID + '] MutationObserver 安装失败:', e);
     }
     console.log('[' + PLUGIN_ID + '] 水印替换器已启动（图片+视频+Observer）');
+  }
 
-    // 额外：扫描页面查找 vid 并获取无水印 URL
-    if (!window.__seedance_vid_scan) {
-      window.__seedance_vid_scan = true;
-      setTimeout(function scanVids() {
-        try {
-          if (!watermarkRemovalEnabled) { setTimeout(scanVids, 5000); return; }
-          if (window.__seedance_fetching_vid) { setTimeout(scanVids, 3000); return; }
-          
-          var html = document.documentElement.innerHTML;
-          var vidMatch = html.match(/vid["\\\\':]+([a-zA-Z0-9_]+)/);
-          if (!vidMatch) { setTimeout(scanVids, 5000); return; }
-          var vid = vidMatch[1];
-          
-          // 检查是否已获取过
-          if (window.__seedance_resolved_vids && window.__seedance_resolved_vids[vid]) {
-            setTimeout(scanVids, 10000); return;
-          }
-          if (!window.__seedance_resolved_vids) window.__seedance_resolved_vids = {};
-          window.__seedance_fetching_vid = true;
-          
-          fetchUnwatermarkedUrl(vid).then(function(url) {
-            window.__seedance_fetching_vid = false;
-            if (url) {
-              window.__seedance_resolved_vids[vid] = url;
-              var mapKey = '__video_doubao_' + vid;
-              if (!window.__seedance_raw_url_map) window.__seedance_raw_url_map = {};
-              window.__seedance_raw_url_map[mapKey] = url;
-              window.postMessage({ type: 'seedance_urls_extracted', urls: (function(){var o={};o[mapKey]=url;return o})() }, '*');
-              console.log('[' + PLUGIN_ID + '] 已获取无水印视频 URL: ' + url.substring(0, 80));
+  // ========== 扫描页面 vid 并获取无水印 URL ==========
+  function startVidScan() {
+    setTimeout(function scanVids() {
+      try {
+        if (!watermarkRemovalEnabled || window.__seedance_fetching_vid) { setTimeout(scanVids, 3000); return; }
+        
+        // 在脚本数据和 HTML 中查找 vid（处理 HTML 实体编码）
+        var allText = document.documentElement.innerHTML;
+        // 先尝试原始 HTML 中的 vid 模式
+        var vidMatch = allText.match(/["']vid["']\s*:\s*["']([a-zA-Z0-9_]+)/);
+        // 尝试 HTML 实体编码的版本 (&quot; 代替 ")
+        if (!vidMatch) vidMatch = allText.match(/vid\\*&quot;\\*\s*:\\*\s*\\*&quot;([a-zA-Z0-9_]+)/);
+        // 尝试解码后的 HTML 实体
+        if (!vidMatch) {
+          var decoded = allText.replace(/&quot;/g, '"').replace(/&#34;/g, '"');
+          vidMatch = decoded.match(/["']vid["']\s*:\s*["']([a-zA-Z0-9_]+)/);
+        }
+        if (!vidMatch) { setTimeout(scanVids, 5000); return; }
+        var vid = vidMatch[1];
+        
+        if (window.__seedance_resolved_vids && window.__seedance_resolved_vids[vid]) { setTimeout(scanVids, 10000); return; }
+        if (!window.__seedance_resolved_vids) window.__seedance_resolved_vids = {};
+        window.__seedance_fetching_vid = true;
+        console.log('[' + PLUGIN_ID + '] 扫描到vid=' + vid + '，正在获取无水印URL...');
+        
+        fetchUnwatermarkedUrl(vid).then(function(url) {
+          window.__seedance_fetching_vid = false;
+          if (url) {
+            window.__seedance_resolved_vids[vid] = url;
+            // 用无水印URL覆盖所有同vid的水印版
+            if (window.__seedance_raw_url_map) {
+              var keysToReplace = Object.keys(window.__seedance_raw_url_map).filter(function(k) {
+                return k.includes(vid) && !k.includes('unwm');
+              });
+              for (var ki = 0; ki < keysToReplace.length; ki++) {
+                window.__seedance_raw_url_map[keysToReplace[ki]] = url;
+              }
             }
-          }).catch(function() { window.__seedance_fetching_vid = false; });
-        } catch(e) {}
-        setTimeout(scanVids, 10000);
-      }, 3000);
-    }
+            var mapKey = '__video_doubao_' + vid;
+            if (!window.__seedance_raw_url_map) window.__seedance_raw_url_map = {};
+            window.__seedance_raw_url_map[mapKey] = url;
+            window.postMessage({ type: 'seedance_urls_extracted', urls: (function(){var o={};o[mapKey]=url;return o})() }, '*');
+            console.log('[' + PLUGIN_ID + '] 无水印视频URL已存入地图: ' + url.substring(0, 80));
+          }
+        }).catch(function() { window.__seedance_fetching_vid = false; });
+      } catch(e) {}
+      setTimeout(scanVids, 10000);
+    }, 3000);
   }
 
   // ========== 15s 时长选项注入 ==========
@@ -746,11 +760,251 @@
     }, 1000);
   }
 
+  // ========== 解析 thread 页面中的视频数据 ==========
+  function parseThreadPageData() {
+    try {
+      // 检查当前页面是否是 thread 页面
+      if (!location.href.includes('/thread/')) return null;
+
+      console.log('[' + PLUGIN_ID + '] 检测到 thread 页面，正在解析视频数据...');
+
+      // 查找 data-fn-args 脚本标签
+      var scripts = document.querySelectorAll('script[data-fn-args]');
+      var shareInfo = null;
+
+      for (var si = 0; si < scripts.length; si++) {
+        var args = scripts[si].getAttribute('data-fn-args');
+        if (!args) continue;
+        try {
+          var parsed = JSON.parse(args);
+          if (!parsed || !Array.isArray(parsed)) continue;
+          
+          // 优先检查格式2: ["thread_(token)/page","shareInfo",{"isMobileShareId":true,...}]
+          if (parsed.length >= 3 && parsed[1] === 'shareInfo' && typeof parsed[2] === 'object' && parsed[2] !== null) {
+            var candidate = parsed[2];
+            // 验证是否包含 video 数据
+            if (candidate.data?.message_snapshot?.message_list) {
+              shareInfo = candidate;
+              break;
+            }
+          }
+          
+          // 格式1: ["thread_(token)/page", [{"key":"shareInfo","routerDataFnArgs":["JSON_STRING"]}]]
+          if (!shareInfo && parsed.length >= 2 && Array.isArray(parsed[1])) {
+            var routerData = parsed[1];
+            for (var ri = 0; ri < routerData.length; ri++) {
+              if (routerData[ri] && routerData[ri].key === 'shareInfo') {
+                var fnArgs = routerData[ri].routerDataFnArgs;
+                if (fnArgs && fnArgs.length > 0) {
+                  try {
+                    var candidate = JSON.parse(fnArgs[0]);
+                    // routerDataFnArgs 可能是字符串参数，不是 JSON 对象
+                    if (candidate && typeof candidate === 'object' && candidate.data?.message_snapshot?.message_list) {
+                      shareInfo = candidate;
+                      break;
+                    }
+                  } catch(e) {}
+                }
+              }
+            }
+          }
+          if (shareInfo) break;
+        } catch(e) {
+          console.log('[' + PLUGIN_ID + '] 解析 data-fn-args 失败:', e.message);
+        }
+      }
+
+      if (!shareInfo) {
+        console.log('[' + PLUGIN_ID + '] 未找到 shareInfo 数据');
+        return null;
+      }
+
+      // 消息在 message_snapshot.message_list 中
+      var messageSnapshot = shareInfo?.data?.message_snapshot;
+      var messages = messageSnapshot?.message_list;
+      if (!messages || !messages.length) {
+        console.log('[' + PLUGIN_ID + '] 未找到 message_list 数据');
+        return null;
+      }
+
+      var urlMap = {};
+      var results = [];
+
+      // 遍历所有消息，查找 creation_block 中的视频数据
+      for (var mi = 0; mi < messages.length; mi++) {
+        var msg = messages[mi];
+        var blocks = msg.content_block || [];
+        for (var bi = 0; bi < blocks.length; bi++) {
+          var creations = blocks[bi]?.content?.creation_block?.creations || [];
+          for (var ci = 0; ci < creations.length; ci++) {
+            var video = creations[ci]?.video;
+            if (!video) continue;
+
+            var vid = video.vid;
+            var downloadUrl = video.download_url;
+            var videoModelStr = video.video_model;
+
+            // 1. 提取 download_url
+            if (downloadUrl) {
+              var key = '__video_thread_' + vid + '_' + ci;
+              urlMap[key] = downloadUrl;
+              results.push({ type: 'video', url: downloadUrl, vid: vid, label: '原始视频' });
+            }
+
+            // 2. 解析 video_model 中的 base64 URL
+            if (videoModelStr) {
+              try {
+                var videoModel = JSON.parse(videoModelStr);
+                var videoList = videoModel.video_list || {};
+                for (var defKey in videoList) {
+                  var def = videoList[defKey];
+                  if (def.main_url) {
+                    try {
+                      var decodedUrl = atob(def.main_url);
+                      var qualityKey = '__video_' + vid + '_' + defKey;
+                      urlMap[qualityKey] = decodedUrl;
+                      results.push({ type: 'video', url: decodedUrl, vid: vid, label: def.definition || defKey, quality: def.quality_type });
+                    } catch(e) {}
+                  }
+                }
+              } catch(e) {}
+            }
+
+            // 3. 尝试生成无水印 URL（修改 lr 参数）
+            if (downloadUrl) {
+              // 移除 lr=video_gen_watermark_dyn 参数
+              var noWmUrl = downloadUrl.replace(/&lr=video_gen_watermark[^&]*/g, '');
+              var noWmKey = '__video_' + vid + '_no_wm';
+              if (noWmUrl !== downloadUrl) {
+                urlMap[noWmKey] = noWmUrl;
+                results.push({ type: 'video', url: noWmUrl, vid: vid, label: '无水印(尝试)' });
+              }
+
+              // 尝试 lr=video_gen_no_watermark
+              var noWmUrl2 = downloadUrl.replace(/lr=video_gen_watermark_dyn/g, 'lr=video_gen_no_watermark');
+              var noWmKey2 = '__video_' + vid + '_no_wm2';
+              if (noWmUrl2 !== downloadUrl) {
+                urlMap[noWmKey2] = noWmUrl2;
+                results.push({ type: 'video', url: noWmUrl2, vid: vid, label: 'no_watermark(尝试)' });
+              }
+
+              // 尝试 lr=unwatermarked (dola.com 方式)
+              var noWmUrl3 = downloadUrl.replace(/lr=video_gen_watermark_dyn/g, 'lr=unwatermarked');
+              var noWmKey3 = '__video_' + vid + '_unwm';
+              if (noWmUrl3 !== downloadUrl) {
+                urlMap[noWmKey3] = noWmUrl3;
+                results.push({ type: 'video', url: noWmUrl3, vid: vid, label: 'unwatermarked(尝试)' });
+              }
+            }
+          }
+
+          // 也检查 images
+          var creationsWithImages = blocks[bi]?.content?.creation_block?.creations || [];
+          for (var ci2 = 0; ci2 < creationsWithImages.length; ci2++) {
+            var image = creationsWithImages[ci2]?.image;
+            if (!image) continue;
+
+            // 提取缩略图
+            var thumbUrl = image.image_thumb?.url;
+            if (thumbUrl) {
+              var thumbKey = '__image_thumb_' + ci2;
+              urlMap[thumbKey] = thumbUrl;
+              results.push({ type: 'image', url: thumbUrl, label: '缩略图' });
+            }
+
+            // 提取预览图
+            var previewUrl = image.image_preview?.url;
+            if (previewUrl) {
+              var prevKey = '__image_preview_' + ci2;
+              urlMap[prevKey] = previewUrl;
+              results.push({ type: 'image', url: previewUrl, label: '预览图' });
+            }
+
+            // 尝试提取无水印版
+            var rawUrl = creationsWithImages[ci2]?.image?.image_ori_raw?.url;
+            if (rawUrl) {
+              var rawKey = '__image_raw_' + ci2;
+              urlMap[rawKey] = rawUrl;
+              results.push({ type: 'image', url: rawUrl, label: '无水印原图' });
+            }
+          }
+        }
+      }
+
+      if (results.length > 0) {
+        // 存入 URL 地图
+        if (!window.__seedance_raw_url_map) window.__seedance_raw_url_map = {};
+        mergeUrlMap(urlMap);
+        console.log('[' + PLUGIN_ID + '] 从 thread 页面提取到 ' + results.length + ' 个资源');
+
+        // 通知 content.js
+        window.postMessage({ type: 'seedance_urls_extracted', urls: urlMap }, '*');
+
+        // 异步调用 fetchUnwatermarkedUrl 获取无水印版
+        for (var ri = 0; ri < results.length; ri++) {
+          var r = results[ri];
+          if (r.vid && r.type === 'video') {
+            (function(vid) {
+              fetchUnwatermarkedUrl(vid).then(function(url) {
+                if (url) {
+                  if (!window.__seedance_raw_url_map) window.__seedance_raw_url_map = {};
+                  // 用无水印URL覆盖所有同vid的水印版
+                  var keysToReplace = Object.keys(window.__seedance_raw_url_map).filter(function(k) {
+                    return k.includes(vid) && !k.includes('unwm');
+                  });
+                  for (var ki = 0; ki < keysToReplace.length; ki++) {
+                    window.__seedance_raw_url_map[keysToReplace[ki]] = url;
+                  }
+                  // 也存一份带unwm标记的
+                  var key = '__video_unwm_' + vid;
+                  window.__seedance_raw_url_map[key] = url;
+                  var singleMap = {};
+                  singleMap[key] = url;
+                  window.postMessage({ type: 'seedance_urls_extracted', urls: singleMap }, '*');
+                  console.log('[' + PLUGIN_ID + '] 无水印URL已覆盖水印版: ' + url.substring(0, 80));
+                }
+              }).catch(function(e) {
+                console.warn('[' + PLUGIN_ID + '] 获取无水印URL失败: ' + (e.message || ''));
+              });
+            })(r.vid);
+          }
+        }
+
+        return { urls: urlMap, results: results, shareInfo: shareInfo };
+      }
+
+      return null;
+    } catch(e) {
+      console.warn('[' + PLUGIN_ID + '] 解析 thread 页面失败:', e.message);
+      return null;
+    }
+  }
+
+  // ========== 在 thread 页面上自动解析 ==========
+  setTimeout(function() {
+    parseThreadPageData();
+  }, 2000);
+
+  // 监听手动触发 thread 解析的消息
+  window.addEventListener('message', function(e) {
+    if (e.data?.type === 'seedance_parse_thread') {
+      try {
+        var result = parseThreadPageData();
+        window.postMessage({ type: 'seedance_thread_parsed', data: result }, '*');
+      } catch(e) {
+        console.warn('[' + PLUGIN_ID + '] 解析 thread 异常:', e.message);
+        window.postMessage({ type: 'seedance_thread_parsed', data: null, error: e.message }, '*');
+      }
+    }
+  });
+
   // ========== 执行安装 ==========
   installFetchHook();
   installXhrHook();
   startWatermarkReplacer();
   startDurationOptionInjector();
   startWatermarkToggleInjector();
+  // 启动 vid 扫描（独立于水印替换器）
+  startVidScan();
   console.log(`[${PLUGIN_ID}] 所有 hook 已安装完成`);
 })();

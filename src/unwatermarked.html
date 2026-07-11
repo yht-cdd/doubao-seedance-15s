@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>无水印链接提取 - Seedance+</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #333; min-height: 100vh; }
+.header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 24px; text-align: center; }
+.header h1 { font-size: 20px; font-weight: 600; }
+.header p { font-size: 13px; opacity: 0.8; margin-top: 6px; }
+.container { max-width: 800px; margin: 20px auto; padding: 0 16px; }
+.stats { display: flex; gap: 12px; margin-bottom: 16px; }
+.stat-card { flex: 1; background: white; border-radius: 12px; padding: 16px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.stat-card .num { font-size: 28px; font-weight: 700; color: #667eea; }
+.stat-card .label { font-size: 12px; color: #888; margin-top: 4px; }
+.toolbar { display: flex; gap: 8px; margin-bottom: 16px; }
+.btn { padding: 8px 16px; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; transition: all 0.2s; }
+.btn-primary { background: #667eea; color: white; }
+.btn-primary:hover { background: #5a6fd6; }
+.btn-danger { background: #ff4757; color: white; }
+.btn-danger:hover { background: #e8384f; }
+.btn-outline { background: white; color: #667eea; border: 1px solid #667eea; }
+.btn-outline:hover { background: #f0f0ff; }
+.card { background: white; border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.card-title { font-size: 14px; font-weight: 600; color: #333; }
+.card-meta { font-size: 11px; color: #999; }
+.card-url { font-size: 12px; color: #555; word-break: break-all; background: #f8f8f8; padding: 8px 10px; border-radius: 6px; font-family: 'SF Mono', Monaco, monospace; margin-bottom: 10px; max-height: 60px; overflow-y: auto; }
+.card-actions { display: flex; gap: 8px; }
+.card-actions .btn { padding: 6px 12px; font-size: 12px; }
+.empty { text-align: center; padding: 60px 20px; color: #999; }
+.empty-icon { font-size: 48px; margin-bottom: 12px; }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+.tag-video { background: #e8f5e9; color: #2e7d32; }
+.tag-image { background: #e3f2fd; color: #1565c0; }
+.toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 10px 20px; border-radius: 8px; font-size: 13px; z-index: 9999; opacity: 0; transition: opacity 0.3s; }
+.toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>🔗 无水印链接提取</h1>
+  <p>Seedance+ 插件自动提取的原始无水印视频/图片链接</p>
+</div>
+
+<div class="container">
+  <div class="stats">
+    <div class="stat-card">
+      <div class="num" id="totalCount">0</div>
+      <div class="label">总链接数</div>
+    </div>
+    <div class="stat-card">
+      <div class="num" id="videoCount">0</div>
+      <div class="label">视频</div>
+    </div>
+    <div class="stat-card">
+      <div class="num" id="imageCount">0</div>
+      <div class="label">图片</div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <button class="btn btn-primary" onclick="copyAll()">📋 复制全部链接</button>
+    <button class="btn btn-outline" onclick="refreshList()">🔄 刷新</button>
+    <button class="btn btn-danger" onclick="clearAll()">🗑 清空</button>
+  </div>
+
+  <div id="urlList"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+function showToast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+function isVideo(url) {
+  return url && (url.includes('video') || url.includes('.mp4') || url.includes('douyinvod') || url.includes('dola.com') || url.includes('mime_type=video'));
+}
+
+function copyToClipboard(text) {
+  navigator.clipboard.writeText(text).then(() => showToast('已复制')).catch(() => {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('已复制');
+  });
+}
+
+function refreshList() {
+  chrome.storage.local.get(['seedance_extracted_urls'], (res) => {
+    var urls = res.seedance_extracted_urls || {};
+    var keys = Object.keys(urls).sort((a, b) => parseInt(b) - parseInt(a));
+
+    var videos = 0, images = 0;
+    keys.forEach(k => { isVideo(urls[k].url) ? videos++ : images++; });
+
+    document.getElementById('totalCount').textContent = keys.length;
+    document.getElementById('videoCount').textContent = videos;
+    document.getElementById('imageCount').textContent = images;
+
+    var container = document.getElementById('urlList');
+    if (keys.length === 0) {
+      container.innerHTML = '<div class="empty"><div class="empty-icon">📭</div><p>暂无提取的链接</p><p style="font-size:12px;margin-top:8px">在豆包或 Dola 中生成视频/图片后，链接会自动出现在这里</p></div>';
+      return;
+    }
+
+    var html = '';
+    keys.forEach(k => {
+      var item = urls[k];
+      var isVid = isVideo(item.url);
+      html += '<div class="card">';
+      html += '<div class="card-header">';
+      html += '<span class="card-title"><span class="tag ' + (isVid ? 'tag-video' : 'tag-image') + '">' + (isVid ? '视频' : '图片') + '</span> ' + (item.key || '').replace(/__video_/, '视频#').replace(/__image_/, '图片#') + '</span>';
+      html += '<span class="card-meta">' + (item.site || '') + ' · ' + (item.time || '') + '</span>';
+      html += '</div>';
+      html += '<div class="card-url">' + (item.url || '') + '</div>';
+      html += '<div class="card-actions">';
+      html += '<button class="btn btn-primary" onclick="copyToClipboard(\'' + item.url.replace(/'/g, "\\'") + '\')">📋 复制链接</button>';
+      html += '<button class="btn btn-outline" onclick="window.open(\'' + item.url.replace(/'/g, "\\'") + '\', \'_blank\')">↗ 打开</button>';
+      html += '<button class="btn btn-danger" onclick="removeUrl(\'' + k + '\')">✕ 删除</button>';
+      html += '</div></div>';
+    });
+    container.innerHTML = html;
+  });
+}
+
+function copyAll() {
+  chrome.storage.local.get(['seedance_extracted_urls'], (res) => {
+    var urls = res.seedance_extracted_urls || {};
+    var keys = Object.keys(urls);
+    if (keys.length === 0) { showToast('没有链接'); return; }
+    var allUrls = keys.map(k => urls[k].url).join('\n');
+    copyToClipboard(allUrls);
+    showToast('已复制 ' + keys.length + ' 个链接');
+  });
+}
+
+function clearAll() {
+  if (confirm('确定清空所有链接？')) {
+    chrome.storage.local.set({ seedance_extracted_urls: {} });
+    refreshList();
+    showToast('已清空');
+  }
+}
+
+function removeUrl(key) {
+  chrome.storage.local.get(['seedance_extracted_urls'], (res) => {
+    var urls = res.seedance_extracted_urls || {};
+    delete urls[key];
+    chrome.storage.local.set({ seedance_extracted_urls: urls });
+    refreshList();
+  });
+}
+
+refreshList();
+setInterval(refreshList, 5000);
+</script>
+</body>
+</html>

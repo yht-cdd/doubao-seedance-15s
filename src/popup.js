@@ -22,6 +22,11 @@ document.addEventListener('DOMContentLoaded', () => {
     refreshUrls();
   });
 
+  // Thread 解析按钮
+  document.getElementById('parseThreadBtn').addEventListener('click', () => {
+    parseThreadPage();
+  });
+
   // 面板关闭
   document.getElementById('closePanel').addEventListener('click', () => {
     urlPanel.classList.remove('open');
@@ -67,7 +72,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btn.classList.contains('btn-c')) {
       navigator.clipboard.writeText(url).then(() => showToast('已复制')).catch(() => showToast('复制失败'));
     } else if (btn.classList.contains('btn-o')) {
-      chrome.tabs.create({ url: url });
+      // 下载视频/图片，而不是直接打开
+      downloadUrl(url, key);
     } else if (btn.classList.contains('btn-d')) {
       delete allUrls[key];
       chrome.storage.local.set({ seedance_extracted_urls: allUrls });
@@ -200,6 +206,51 @@ function refreshUrls() {
   }, 500);
 }
 
+// === 下载 URL（通过 content.js 发送 Referer 头） ===
+function downloadUrl(url, key) {
+  // 判断是否是 doubao CDN 视频
+  if (url.includes('doubao.com') || url.includes('douyin.com') || url.includes('douyinvod.com') || url.includes('snssdk.com')) {
+    showToast('正在下载...');
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (!tabs[0]?.id) { showToast('没有活动标签页'); return; }
+      chrome.tabs.sendMessage(tabs[0].id, { type: 'download-video', url: url, key: key }, (response) => {
+        if (response && response.ok) {
+          showToast('下载已开始');
+        } else {
+          showToast('下载失败: ' + (response?.error || '请刷新页面重试'));
+        }
+      });
+    });
+  } else {
+    // 普通 URL 直接打开
+    chrome.tabs.create({ url: url });
+  }
+}
+
+// === 解析 Thread 页面 ===
+function parseThreadPage() {
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    if (!tabs[0]?.id) { showToast('没有活动标签页'); return; }
+    const url = tabs[0].url || '';
+    if (!url.includes('/thread/')) { showToast('当前页面不是 thread 页面'); return; }
+
+    showToast('正在解析 thread 页面...');
+
+    // 发送消息到 content.js，由 content.js 转发给 inject.js
+    chrome.tabs.sendMessage(tabs[0].id, { type: 'parse-thread' }, (response) => {
+      if (response && response.ok) {
+        showToast('Thread 解析完成，请在链接面板查看');
+        // 自动打开链接面板
+        document.getElementById('urlPanel').classList.add('open');
+        document.getElementById('mainPanel').classList.add('shifted');
+        setTimeout(refreshUrls, 500);
+      } else {
+        showToast('解析失败: ' + (response?.error || '未知错误'));
+      }
+    });
+  });
+}
+
 function updateStats() {
   const keys = Object.keys(allUrls);
   let v = 0, img = 0;
@@ -261,7 +312,7 @@ function renderPage() {
     html += '<div class="url-card-url"><a href="' + item.url + '" download="' + filename + '" target="_blank">' + shortUrl + '</a></div>';
     html += '<div class="url-card-actions">';
     html += '<button class="btn btn-c">📋 复制</button>';
-    html += '<button class="btn btn-o">↗ 打开</button>';
+    html += '<button class="btn btn-o">⬇ 下载</button>';
     html += '<button class="btn btn-d">✕</button>';
     html += '</div></div>';
   });

@@ -8,7 +8,7 @@
   let isEnabled = true;
   let targetDuration = 15;
 
-  console.log(`[${PLUGIN_ID}] content.js 已加载`);
+  console.log(`[${PLUGIN_ID}] content.js 已加载 (v7.7.1)`);
 
   // ========== 1. 同步时长配置到 inject.js ==========
   function syncDurationConfig() {
@@ -527,6 +527,7 @@
         addVideoDownloadButton(v);
       }
     });
+  }
   function scanForGeneratedImages() {
     const imgs = document.querySelectorAll('img');
     imgs.forEach(img => {
@@ -569,22 +570,35 @@
 
   setTimeout(scanForGeneratedImages, 3000);
 
-  // ========== 6. 监听来自 inject.js 的下载请求 ==========
+  // ========== 6. 监听来自 inject.js 和 popup 的下载请求 ==========
   window.addEventListener('message', (e) => {
     if (e.data?.type === 'seedance_download_video' && e.data.url) {
       console.log(`[${PLUGIN_ID}] 收到下载请求: ${e.data.url.substring(0, 80)}`);
-      chrome.runtime.sendMessage({
-        type: 'download-video',
-        url: e.data.url
-      }, (resp) => {
-        if (resp && resp.ok) {
-          console.log(`[${PLUGIN_ID}] 下载已开始, ID: ${resp.downloadId}`);
-        } else {
-          console.error(`[${PLUGIN_ID}] 下载失败:`, resp?.error || 'unknown');
-        }
-      });
+      downloadWithHeaders(e.data.url);
     }
   });
+
+  // 下载函数（带 Referer 头）
+  async function downloadWithHeaders(url) {
+    try {
+      const resp = await fetch(url, {
+        headers: { 'Referer': 'https://www.doubao.com/' }
+      });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const blob = await resp.blob();
+      const ext = blob.type.includes('mp4') ? 'mp4' : (blob.type.includes('png') ? 'png' : 'mp4');
+      const filename = 'doubao_uw_' + Date.now() + '.' + ext;
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl; a.download = filename;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+      console.log(`[${PLUGIN_ID}] 下载完成: ${filename}`);
+    } catch(e) {
+      console.error(`[${PLUGIN_ID}] 下载失败:`, e.message);
+    }
+  }
 
   // ========== 7. 监听来自 popup 的消息 ==========
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -592,6 +606,39 @@
       syncDurationConfig();
       reinstallFetchHook();
       sendResponse({ ok: true });
+    }
+    // Thread 页面解析
+    if (msg.type === 'parse-thread') {
+      console.log(`[${PLUGIN_ID}] 收到 thread 解析请求`);
+      window.postMessage({ type: 'seedance_parse_thread' }, '*');
+      const handler = (e) => {
+        if (e.data?.type === 'seedance_thread_parsed') {
+          window.removeEventListener('message', handler);
+          if (e.data.data && e.data.data.results && e.data.data.results.length > 0) {
+            sendResponse({ ok: true, count: e.data.data.results.length });
+          } else if (e.data.error) {
+            sendResponse({ ok: false, error: '解析异常: ' + e.data.error });
+          } else {
+            sendResponse({ ok: false, error: '未找到视频数据' });
+          }
+        }
+      };
+      window.addEventListener('message', handler);
+      setTimeout(() => {
+        window.removeEventListener('message', handler);
+        sendResponse({ ok: false, error: '超时' });
+      }, 10000);
+      return true;
+    }
+    // 下载视频（带 Referer 头）
+    if (msg.type === 'download-video' && msg.url) {
+      console.log(`[${PLUGIN_ID}] 收到 popup 下载请求: ${msg.url.substring(0, 80)}`);
+      downloadWithHeaders(msg.url).then(() => {
+        sendResponse({ ok: true });
+      }).catch((e) => {
+        sendResponse({ ok: false, error: e.message });
+      });
+      return true;
     }
     return true;
   });

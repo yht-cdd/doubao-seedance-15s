@@ -43,4 +43,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     sendResponse({ ok: true });
     return true;
   }
+
+  if (msg.type === 'download-video' && msg.url) {
+    chrome.downloads.download({
+      url: msg.url,
+      filename: 'doubao_15s_uw_' + Date.now() + '.mp4',
+      saveAs: false
+    }, (downloadId) => {
+      if (chrome.runtime.lastError) {
+        console.error(`[${PLUGIN_ID}] 下载失败:`, chrome.runtime.lastError.message);
+        sendResponse({ ok: false, error: chrome.runtime.lastError.message });
+      } else {
+        console.log(`[${PLUGIN_ID}] 下载已开始, ID: ${downloadId}`);
+        sendResponse({ ok: true, downloadId: downloadId });
+      }
+    });
+    return true;
+  }
 });
